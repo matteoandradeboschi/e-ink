@@ -1,6 +1,6 @@
 /*
  * E-ink — Kindle-style paper (neutral #EEEEEC, soft ink #1A1A1A, 17px/1.6 Literata) on top of Carta with a Kindle-style page: Bitter headings, plain property
- * list, hairline thematic break, faint paper grain.
+ * list, hairline thematic break, and a paper texture you can adjust with Style Settings.
  * Paper and ink, the way an E Ink screen shows them: neutral grey paper,
  * near-black ink, hairline rules, running header and footer in spaced caps.
  *
@@ -313,21 +313,305 @@ body .metadata-container .metadata-add-button {
   text-transform: uppercase;
 }
 
-/* Paper grain: faint noise over the whole window */
+/* @settings
+name: E-ink
+id: e-ink
+settings:
+  -
+    id: eink-texture-heading
+    title: Paper texture
+    description: Works with or without this plugin. Without it, Blotches and Ink are on with default values.
+    type: heading
+    level: 2
+    collapsed: false
+  -
+    id: eink-scale
+    title: Texture size
+    description: 1 = default, smaller = finer, larger = coarser. Applies to all layers.
+    type: variable-number-slider
+    default: 1
+    min: 0.3
+    max: 4
+    step: 0.05
+  -
+    id: eink-no-blotches
+    title: Turn off Blotches
+    description: Uneven E Ink panel (large blotches and grain)
+    type: class-toggle
+    default: false
+  -
+    id: eink-blotches
+    title: Blotches intensity, light mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-blotches-dark
+    title: Blotches intensity, dark mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-no-ink
+    title: Turn off Ink
+    description: Light speckles over text, icons and borders
+    type: class-toggle
+    default: false
+  -
+    id: eink-ink
+    title: Ink intensity, light mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-ink-dark
+    title: Ink intensity, dark mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-grain-on
+    title: Grain
+    description: Fine noise
+    type: class-toggle
+    default: false
+  -
+    id: eink-grain
+    title: Grain intensity, light mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-grain-dark
+    title: Grain intensity, dark mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-fibres-on
+    title: Fibres
+    description: Paper with fibres
+    type: class-toggle
+    default: false
+  -
+    id: eink-fibres
+    title: Fibres intensity, light mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-fibres-dark
+    title: Fibres intensity, dark mode
+    description: 0 = none, 1 = default, 2.5 = maximum
+    type: variable-number-slider
+    default: 1
+    min: 0
+    max: 2.5
+    step: 0.05
+  -
+    id: eink-web-light-ink
+    title: Light-mode Ink in Web viewer
+    description: In dark mode, turn on when you browse light (white) pages in the Web viewer. Leave off for dark pages.
+    type: class-toggle
+    default: false
+*/
+
+/* Base for the Blotches layer: full window, multiply in light mode, screen in dark mode */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 1000;
   pointer-events: none;
-  opacity: 0.2;
   mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 .55 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 .theme-dark::after {
-  opacity: 0.08;
   mix-blend-mode: screen;
 }
+
+/* Paper texture: four independent layers (toggle on/off, variable = intensity, 1 = default).
+   Layers: Blotches = body::after · Ink = body::before · Grain = .app-container::before · Fibres = .app-container::after */
+body {
+  --eink-blotches: 1;
+  --eink-grain: 1;
+  --eink-fibres: 1;
+  --eink-ink: 1;
+  --eink-blotches-dark: 1;
+  --eink-grain-dark: 1;
+  --eink-fibres-dark: 1;
+  --eink-ink-dark: 1;
+  --eink-scale: 1;
+/* Multiplies the tile size of every layer */
+  --eink-zoom-base: 1;
+/* Light-mode layer images (also reused on light Excalidraw drawings in dark mode, below) */
+  --eink-img-blotches: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.45 0 0 0 0 0.45 2.2 0 0 0 -0.95'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.3' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.35 0 0 0 0 0.35 0.9 0 0 0 -0.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --eink-img-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 1.5 0 0 0 -0.5'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --eink-img-ink: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cfilter id='t' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.922 0 0 0 0 0.922 0 0 0 0 0.922 2.4 0 0 0 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23t)'/%3E%3C/svg%3E");
+}
+
+/* Turned off */
+body.eink-no-blotches::after,
+body.eink-no-ink::before,
+body:not(.eink-grain-on) .app-container::before,
+body:not(.eink-fibres-on) .app-container::after { display: none; }
+
+/* Grain and Fibres: full window, multiply in light mode, screen in dark mode */
+.app-container::before,
+.app-container::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.theme-dark .app-container::before,
+.theme-dark .app-container::after { mix-blend-mode: screen; }
+
+/* ---------- Blotches: uneven E Ink panel ---------- */
+body:not(.eink-no-blotches)::after {
+  opacity: calc(0.117 * var(--eink-blotches));
+  background-size: calc(512px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-blotches);
+}
+body:not(.eink-no-blotches).theme-dark::after { opacity: calc(0.047 * var(--eink-blotches-dark)); }
+
+/* ---------- Grain: fine noise ---------- */
+body.eink-grain-on .app-container::before {
+  opacity: calc(0.16 * var(--eink-grain));
+  background-size: calc(128px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-grain);
+}
+/* Dark: harder, lighter grain so it shows on the dark background with screen */
+body.eink-grain-on.theme-dark .app-container::before {
+  opacity: calc(0.1575 * var(--eink-grain-dark));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 3 0 0 0 -1.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Fibres: paper with fibres ---------- */
+body.eink-fibres-on .app-container::after {
+  opacity: calc(0.14 * var(--eink-fibres));
+  background-size: calc(256px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .7' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.35 0 0 0 0 0.35 0.9 0 0 0 -0.2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.4 0 0 0 0 0.4 0 0 0 0 0.4 0.6 0 0 0 -0.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+body.eink-fibres-on.theme-dark .app-container::after { opacity: calc(0.056 * var(--eink-fibres-dark)); }
+
+/* ---------- Ink: light speckles over everything (text, icons, borders) ---------- */
+body:not(.eink-no-ink)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  pointer-events: none;
+  opacity: calc(0.22 * var(--eink-ink));
+  background-size: calc(96px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-ink);
+}
+.theme-dark:not(.eink-no-ink)::before { opacity: calc(0.22 * var(--eink-ink-dark)); filter: invert(1); }
+/* Dark + visible light Excalidraw drawing: the dark Ink speckles turn into noise on the white canvas, so hide them while it's on screen. */
+.theme-dark:not(.eink-no-ink):has(.workspace-leaf:not([style*="display: none"]) > .workspace-leaf-content[data-type="excalidraw"] .excalidraw:not(.theme--dark))::before { display: none; }
+/* Dark + visible Web viewer: web pages are usually white and the Ink turns into a checkerboard, so hide it while it's on screen. */
+.theme-dark:not(.eink-no-ink):has(.workspace-leaf:not([style*="display: none"]) > .workspace-leaf-content[data-type="webviewer"])::before { display: none; }
+/* Dark + light Excalidraw drawing: the white canvas gets the light-mode layers (Blotches, Grain, Ink), clipped to the drawing */
+.theme-dark .excalidraw-view:has(.excalidraw:not(.theme--dark)) { position: relative; }
+.theme-dark .excalidraw-view:has(.excalidraw:not(.theme--dark))::after,
+.theme-dark .excalidraw-wrapper:has(.excalidraw:not(.theme--dark))::before,
+.theme-dark .excalidraw-wrapper:has(.excalidraw:not(.theme--dark))::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.theme-dark:not(.eink-no-blotches) .excalidraw-wrapper:has(.excalidraw:not(.theme--dark))::after {
+  opacity: calc(0.117 * var(--eink-blotches));
+  background-size: calc(512px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-blotches);
+}
+.theme-dark.eink-grain-on .excalidraw-wrapper:has(.excalidraw:not(.theme--dark))::before {
+  opacity: calc(0.16 * var(--eink-grain));
+  background-size: calc(128px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-grain);
+}
+.theme-dark:not(.eink-no-ink) .excalidraw-view:has(.excalidraw:not(.theme--dark))::after {
+  z-index: 1001;
+  mix-blend-mode: normal;
+  opacity: calc(0.22 * var(--eink-ink));
+  background-size: calc(96px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-ink);
+}
+
+/* Dark + Web viewer: the page gets the light-mode layers (Blotches and Grain, invisible on dark pages), clipped to the page without the address bar. Light-mode Ink only with the "Light-mode Ink in Web viewer" toggle */
+.theme-dark .workspace-leaf-content[data-type="webviewer"] { position: relative; }
+.theme-dark .webviewer-content { position: relative; }
+.theme-dark .webviewer-content::before,
+.theme-dark .webviewer-content::after,
+.theme-dark .workspace-leaf-content[data-type="webviewer"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.theme-dark:not(.eink-no-blotches) .webviewer-content::after {
+  opacity: calc(0.117 * var(--eink-blotches));
+  background-size: calc(512px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-blotches);
+}
+.theme-dark.eink-grain-on .webviewer-content::before {
+  opacity: calc(0.16 * var(--eink-grain));
+  background-size: calc(128px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-grain);
+}
+.theme-dark.eink-web-light-ink:not(.eink-no-ink) .workspace-leaf-content[data-type="webviewer"]::after {
+  top: var(--header-height);
+  z-index: 1001;
+  mix-blend-mode: normal;
+  opacity: calc(0.22 * var(--eink-ink));
+  background-size: calc(96px * var(--eink-zoom-base) * var(--eink-scale));
+  background-image: var(--eink-img-ink);
+}
+
+/* ---------- View transitions ----------
+   During a view transition the browser paints named elements above the root layer, so the texture would vanish
+   and come back. Naming the layers keeps them on top and still (no crossfade). */
+body::after,
+body::before,
+.app-container::before,
+.app-container::after {
+  view-transition-class: eink-texture;
+}
+
+body::after { view-transition-name: eink-blotches; }
+body::before { view-transition-name: eink-ink; }
+.app-container::before { view-transition-name: eink-grain; }
+.app-container::after { view-transition-name: eink-fibres; }
+
+::view-transition-old(.eink-texture) { display: none; }
+::view-transition-new(.eink-texture) { animation: none; }
 
 /* ---------- Embedded fonts (SIL OFL 1.1, see OFL.txt) ---------- */
 @font-face {
